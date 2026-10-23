@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random Data → Postgres</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121a2f; --panel-2:#0e1526; --line:#22304d;
+    --text:#e8eefc; --muted:#8ea0c0; --accent:#37d6b0; --accent-2:#5aa9ff;
+    --red:#ff6b81; --amber:#ffc857; --green:#4ade80;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;color:var(--text);
+    background:radial-gradient(1200px 600px at 15% -10%,#16234a 0%,transparent 60%),var(--bg);
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 64px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+  h1{font-size:22px;margin:0;letter-spacing:-.02em}
+  h2{font-size:14px;margin:0;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 4px rgba(142,160,192,.12)}
+  .dot.ok{background:var(--green);box-shadow:0 0 0 4px rgba(74,222,128,.15)}
+  .dot.bad{background:var(--red);box-shadow:0 0 0 4px rgba(255,107,129,.15)}
+  .grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.3fr);gap:16px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card + .card{margin-top:16px}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:12px}
+  label span{color:#5f7396;font-size:11px;margin-left:4px}
+  input,select{
+    display:block;width:100%;margin-top:6px;padding:10px 12px;border-radius:9px;
+    border:1px solid var(--line);background:#0a101f;color:var(--text);font:inherit;
+    font-variant-numeric:tabular-nums;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(90,169,255,.15)}
+  button{
+    font:inherit;font-weight:600;border-radius:9px;border:1px solid transparent;
+    padding:11px 16px;cursor:pointer;transition:filter .15s,opacity .15s;
+  }
+  button:hover:not(:disabled){filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .primary{width:100%;background:linear-gradient(135deg,#2fd3ad,#3f9dff);color:#06121f}
+  .danger{background:transparent;border-color:rgba(255,107,129,.5);color:var(--red);padding:8px 14px}
+  .danger.small{padding:6px 11px;font-size:12px}
+  .card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  button.row-delete{background:transparent;border-color:rgba(255,107,129,.35);color:var(--red);padding:4px 10px;font-size:12px;border-radius:7px}
+  .hint{font-size:12px;color:var(--muted);margin:-2px 0 12px}
+  .run-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .pill{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .pill.running{color:var(--accent);border-color:rgba(55,214,176,.45);animation:pulse 1.6s infinite}
+  .pill.completed{color:var(--green);border-color:rgba(74,222,128,.45)}
+  .pill.stopped,.pill.interrupted{color:var(--amber);border-color:rgba(255,200,87,.45)}
+  .pill.failed{color:var(--red);border-color:rgba(255,107,129,.45)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .progress{height:8px;border-radius:999px;background:#0a101f;border:1px solid var(--line);overflow:hidden;margin-bottom:16px}
+  .progress > div{height:100%;width:0;background:linear-gradient(90deg,#2fd3ad,#5aa9ff);transition:width .4s ease}
+  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+  .metrics div{background:#0a101f;border:1px solid var(--line);border-radius:10px;padding:10px 8px;text-align:center;min-width:0}
+  .metrics span{display:block;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .metrics small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+  .err{color:var(--red);font-size:12px;margin-top:10px;word-break:break-word}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}
+  .stat{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .stat span{display:block;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  .stat small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  .table-wrap{overflow:auto;margin-top:12px;border-radius:10px;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+  th,td{text-align:left;padding:8px 12px;border-bottom:1px solid rgba(34,48,77,.6);white-space:nowrap}
+  th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.06em;background:#0a101f;position:sticky;top:0}
+  td.num{font-variant-numeric:tabular-nums}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#a8b9d8}
+  td.preview{max-width:380px;overflow:hidden;text-overflow:ellipsis;color:#7f93b5;font-family:ui-monospace,monospace;font-size:11px}
+  tr:last-child td{border-bottom:none}
+  .empty{color:var(--muted);font-size:13px;padding:14px 4px}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:#2a1520;border:1px solid rgba(255,107,129,.5);color:#ffd7de;
+    padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;
+    max-width:min(520px,90vw);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{margin-top:28px;color:#5f7396;font-size:12px;text-align:center}
+  @media (max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:1fr}
+    .metrics{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 class="brand"><span class="dot" id="dbDot"></span> Random Data → Postgres</h1>
+      <div class="sub" id="dbStatus">checking database…</div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>New load</h2>
+      <form id="runForm" style="margin-top:14px">
+        <label>Duration <span>seconds</span>
+          <input id="duration" type="number" min="1" max="3600" step="1" value="10" required>
+        </label>
+        <label>Rate <span>rows / second</span>
+          <input id="rate" type="number" min="1" max="5000" step="1" value="50" required>
+        </label>
+        <label>Payload size <span>bytes</span>
+          <select id="payload">
+            <option value="64">64 B</option>
+            <option value="256" selected>256 B</option>
+            <option value="1024">1 KB</option>
+            <option value="4096">4 KB</option>
+          </select>
+        </label>
+        <div class="hint" id="estimate">≈ 500 rows · ~125 KB</div>
+        <button id="startBtn" class="primary" type="submit">Start load</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="run-head">
+        <h2>Active run</h2>
+        <span class="pill" id="runState">idle</span>
+      </div>
+      <div class="progress"><div id="bar"></div></div>
+      <div class="metrics">
+        <div><span id="mInserted">0</span><small>inserted</small></div>
+        <div><span id="mTarget">0</span><small>target</small></div>
+        <div><span id="mRate">0</span><small>rows/s</small></div>
+        <div><span id="mErrors">0</span><small>errors</small></div>
+        <div><span id="mElapsed">0s</span><small>elapsed</small></div>
+      </div>
+      <button id="stopBtn" class="danger" type="button" disabled>Stop run</button>
+      <div class="err" id="runError"></div>
+    </section>
+  </main>
+
+  <section class="stats">
+    <div class="stat"><span id="sRows">–</span><small>rows in table</small></div>
+    <div class="stat"><span id="sTable">–</span><small>table size</small></div>
+    <div class="stat"><span id="sDb">–</span><small>database size</small></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Recent rows</h2>
+      <button id="deleteAllBtn" class="danger small" type="button">Delete all data</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>id</th><th>created</th><th>run</th><th>bytes</th><th>payload</th></tr></thead>
+        <tbody id="rowsBody"><tr><td colspan="5" class="empty">No rows yet.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Run history</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>started</th><th>status</th><th>duration</th><th>rate</th><th>payload</th><th>inserted</th><th>run</th><th>actions</th></tr></thead>
+        <tbody id="runsBody"><tr><td colspan="8" class="empty">No runs yet.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Random payloads are stored as <code>jsonb</code> in table <code>random_events</code>.</footer>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let activeRun = null;
+let pollTimer = null;
+let refreshing = false;
+
+function fmtNum(n){ return Number(n || 0).toLocaleString(); }
+function fmtBytes(n){
+  n = Number(n || 0);
+  if (n < 1024) return n + " B";
+  const units = ["KB","MB","GB","TB"];
+  let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < units.length - 1);
+  return n.toFixed(n >= 100 ? 0 : 1) + " " + units[i];
+}
+function fmtDur(s){
+  s = Math.max(0, Math.round(Number(s) || 0));
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60), r = s % 60;
+  return m + "m " + String(r).padStart(2, "0") + "s";
+}
+function fmtTime(iso){
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleString([], {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit"});
+}
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+let toastTimer = null;
+function toast(msg){
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
+}
+
+async function api(path, options = {}){
+  const res = await fetch(path, {headers: {"Content-Type": "application/json"}, ...options});
+  if (!res.ok){
+    let detail = res.statusText;
+    try { const body = await res.json(); detail = body.detail || detail; } catch (_) {}
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return res.json();
+}
+
+async function checkHealth(){
+  const dot = $("dbDot"), label = $("dbStatus");
+  try {
+    await api("/healthz");
+    dot.className = "dot ok";
+    label.textContent = "Postgres connected";
+  } catch (err) {
+    dot.className = "dot bad";
+    label.textContent = "database unavailable — " + err.message;
+  }
+}
+
+function setRunningUI(running){
+  $("startBtn").disabled = running;
+  $("stopBtn").disabled = !running;
+}
+
+function renderRun(run){
+  const state = $("runState");
+  state.textContent = run.status;
+  state.className = "pill " + run.status;
+  $("mInserted").textContent = fmtNum(run.inserted);
+  $("mTarget").textContent = fmtNum(run.target);
+  $("mRate").textContent = Number(run.actual_rate || 0).toFixed(1);
+  $("mErrors").textContent = fmtNum(run.errors);
+  $("mElapsed").textContent = fmtDur(run.elapsed_seconds);
+  $("bar").style.width = Math.min(100, Math.max(0, (run.progress || 0) * 100)) + "%";
+  $("runError").textContent = run.last_error || "";
+}
+
+function schedulePoll(ms){
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(poll, ms);
+}
+
+async function poll(){
+  if (!activeRun) return;
+  try {
+    const run = await api("/api/runs/" + activeRun.run_id);
+    activeRun = run;
+    renderRun(run);
+    if (run.status === "running"){
+      schedulePoll(1000);
+    } else {
+      setRunningUI(false);
+      refreshAll();
+    }
+  } catch (err) {
+    toast(err.message);
+    schedulePoll(2000);
+  }
+}
+
+async function startRun(event){
+  event.preventDefault();
+  const body = {
+    duration_seconds: Number($("duration").value),
+    rate_per_second: Number($("rate").value),
+    payload_bytes: Number($("payload").value),
+  };
+  try {
+    setRunningUI(true);
+    $("runError").textContent = "";
+    const run = await api("/api/runs", {method: "POST", body: JSON.stringify(body)});
+    activeRun = run;
+    renderRun(run);
+    schedulePoll(500);
+  } catch (err) {
+    toast(err.message);
+    setRunningUI(false);
+  }
+}
+
+async function stopRun(){
+  if (!activeRun) return;
+  $("stopBtn").disabled = true;
+  try {
+    const run = await api("/api/runs/" + activeRun.run_id + "/stop", {method: "POST"});
+    activeRun = run;
+    renderRun(run);
+    if (run.status === "running") schedulePoll(500);
+    else { setRunningUI(false); refreshAll(); }
+  } catch (err) {
+    toast(err.message);
+    $("stopBtn").disabled = false;
+  }
+}
+
+async function refreshStats(){
+  try {
+    const s = await api("/api/stats");
+    $("sRows").textContent = fmtNum(s.total_rows);
+    $("sTable").textContent = fmtBytes(s.table_bytes);
+    $("sDb").textContent = fmtBytes(s.db_bytes);
+  } catch (_) {}
+}
+
+async function refreshRows(){
+  try {
+    const {rows} = await api("/api/rows?limit=10");
+    const body = $("rowsBody");
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="5" class="empty">No rows yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td class="num">${r.id}</td>
+        <td class="num">${esc(fmtTime(r.created_at))}</td>
+        <td class="mono">${esc(r.run_id.slice(0, 8))}</td>
+        <td class="num">${r.payload_bytes}</td>
+        <td class="preview" title="${esc(r.payload)}">${esc(r.payload)}</td>
+      </tr>`).join("");
+  } catch (_) {}
+}
+
+async function refreshRuns(){
+  try {
+    const {runs} = await api("/api/runs?limit=10");
+    const body = $("runsBody");
+    if (!runs.length){
+      body.innerHTML = '<tr><td colspan="8" class="empty">No runs yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = runs.map(r => `
+      <tr>
+        <td class="num">${esc(fmtTime(r.started_at))}</td>
+        <td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td>
+        <td class="num">${fmtDur(r.duration_seconds)}</td>
+        <td class="num">${fmtNum(r.rate_per_second)}/s</td>
+        <td class="num">${fmtBytes(r.payload_bytes)}</td>
+        <td class="num">${fmtNum(r.inserted)}</td>
+        <td class="mono">${esc(r.run_id.slice(0, 8))}</td>
+        <td><button class="danger row-delete" type="button" data-run="${esc(r.run_id)}" data-rows="${r.inserted}">Delete</button></td>
+      </tr>`).join("");
+  } catch (_) {}
+}
+
+function refreshAll(){
+  if (refreshing) return;
+  refreshing = true;
+  Promise.all([refreshStats(), refreshRows(), refreshRuns()]).finally(() => { refreshing = false; });
+}
+
+function updateEstimate(){
+  const duration = Number($("duration").value) || 0;
+  const rate = Number($("rate").value) || 0;
+  const size = Number($("payload").value) || 0;
+  const rows = Math.max(0, Math.round(duration * rate));
+  $("estimate").textContent = `≈ ${fmtNum(rows)} rows · ~${fmtBytes(rows * size)}`;
+}
+
+async function resumeActiveRun(){
+  try {
+    const {runs} = await api("/api/runs?limit=1");
+    if (runs.length && runs[0].status === "running"){
+      activeRun = runs[0];
+      renderRun(runs[0]);
+      setRunningUI(true);
+      schedulePoll(500);
+    }
+  } catch (_) {}
+}
+
+function resetRunUI(){
+  activeRun = null;
+  clearTimeout(pollTimer);
+  const state = $("runState");
+  state.textContent = "idle";
+  state.className = "pill";
+  ["mInserted", "mTarget", "mRate", "mErrors"].forEach(id => { $(id).textContent = "0"; });
+  $("mElapsed").textContent = "0s";
+  $("bar").style.width = "0%";
+  $("runError").textContent = "";
+  setRunningUI(false);
+}
+
+async function deleteRun(runId, rows){
+  const label = "run " + runId.slice(0, 8);
+  if (!confirm(`Delete ${fmtNum(rows)} rows from ${label} and its history entry?\n\nThis cannot be undone.`)) return;
+  try {
+    const res = await api("/api/runs/" + runId, {method: "DELETE"});
+    if (activeRun && activeRun.run_id === runId) resetRunUI();
+    toast("Deleted " + fmtNum(res.deleted_rows) + " rows");
+    refreshAll();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+async function deleteAllData(){
+  if (!confirm("Delete ALL inserted rows and the entire run history?\n\nThis cannot be undone.")) return;
+  try {
+    const res = await api("/api/data", {method: "DELETE"});
+    resetRunUI();
+    toast("Deleted " + fmtNum(res.deleted_rows) + " rows");
+    refreshAll();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+$("runForm").addEventListener("submit", startRun);
+$("stopBtn").addEventListener("click", stopRun);
+$("deleteAllBtn").addEventListener("click", deleteAllData);
+$("runsBody").addEventListener("click", (event) => {
+  const btn = event.target.closest("button[data-run]");
+  if (!btn) return;
+  deleteRun(btn.dataset.run, Number(btn.dataset.rows));
+});
+["duration", "rate", "payload"].forEach(id => $(id).addEventListener("input", updateEstimate));
+
+updateEstimate();
+checkHealth();
+refreshAll();
+resumeActiveRun();
+setInterval(checkHealth, 15000);
+setInterval(() => {
+  if (activeRun && activeRun.status === "running") { refreshRows(); refreshRuns(); }
+  else refreshAll();
+}, 6000);
+</script>
+</body>
+</html>

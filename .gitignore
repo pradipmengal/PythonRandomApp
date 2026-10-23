@@ -1,0 +1,7 @@
+.venv/
+.run/
+logs/
+.env
+__pycache__/
+*.pyc
+creds.txt
