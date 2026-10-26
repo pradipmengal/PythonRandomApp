@@ -173,9 +173,13 @@ init_db() {
     cd /tmp
     sudo -u postgres psql -X -q -tA -v ON_ERROR_STOP=1 -d postgres \
       -v role="$PG_APP_USER" -v pass="$PG_APP_PASSWORD" -v db="$PG_APP_DB" <<'SQL'
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'pass')
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE',
+  :'role', :'pass')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role')\gexec
-SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'role', :'pass')\gexec
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE',
+  :'role', :'pass')\gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'role')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db')\gexec
 SQL
@@ -362,7 +366,7 @@ POSTGRESQL (direct)
   User              : ${PG_APP_USER}
   Password          : ${PG_APP_PASSWORD}
   Connection URL    : ${DIRECT_URL}${pg_public_lines}
-  Superuser         : postgres / postgres (local only)
+  Superuser         : postgres (local peer auth only; no TCP password)
   Service           : postgresql-15.1
   Data directory    : /var/lib/postgresql/15.1/data
   Log file          : /var/log/postgresql/postgresql-15.1-YYYY-MM-DD.log
