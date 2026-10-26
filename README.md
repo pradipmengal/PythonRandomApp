@@ -1,5 +1,9 @@
 # Random Data → Postgres
 
+> Full build/architecture/wiring guide: **[SETUP.md](SETUP.md)**
+>
+> Fresh-EC2 rebuild runbook: **[PROVISION.md](PROVISION.md)**
+
 A small web app that streams randomly generated, size-controlled JSON records
 into PostgreSQL for a chosen duration and rate. Includes a live dashboard and a
 `deploy.sh` that starts, stops and destroys the application.
@@ -81,10 +85,11 @@ Both ports are plaintext TCP (TLS is off) and protected only by the password —
 restrict them at the firewall/security group if you don't need remote access.
 
 ```bash
+# Replace <password> with the value in creds.txt or .env; it is not repeated here.
 # direct PostgreSQL
-psql "postgresql://randomdata:randomdata@<public-ip>:5432/randomdata"
+psql "postgresql://randomdata:<password>@<public-ip>:5432/randomdata"
 # via PgBouncer (recommended)
-psql "postgresql://randomdata:randomdata@<public-ip>:6432/randomdata"
+psql "postgresql://randomdata:<password>@<public-ip>:6432/randomdata"
 ```
 
 | Item | Value |
